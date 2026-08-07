@@ -40,10 +40,16 @@
  * CDB[5] of READ(6) selects the mode. Bit 0x80 is always set; bit
  * 0x40 turns on blind (multi-record) transfers; bit 0x20 is the
  * BlueSCSI-SL003 bounded extension and means nothing to real ROMs.
+ * Bit 0x10 (also BlueSCSI-SL003) requests seamless emission --
+ * seamless records, no pacing gaps. Send it from hardware-handshaked
+ * hosts only: software-timed blind loops depend on the classic gaps,
+ * and Quadra-era SCSI Manager 4.3 machines corrupt on the pauses
+ * unless they are declared (see the guide's 4.3 section).
  */
 #define DP_MODE_POLLED  0x80
 #define DP_MODE_BLIND   0xC0
 #define DP_MODE_BOUNDED 0xE0
+#define DP_MODE_SEAMLESS  0x10            /* OR into the mode byte */
 
 #define DP_SENSE_LEN        9
 #define DP_KEY_ILLEGAL      5
@@ -394,14 +400,31 @@ int dp_poll_burst(int target, int max_frames,
  * walk the records in memory afterwards. Only available where the
  * INQUIRY capability bit advertises it.
  *
- * Returns the number of frames delivered, or -1.
+ * The batch ends exactly as a blind batch ends. Drained queue: the
+ * last record's more-flag is clear, nothing follows. Budget or
+ * record cap: records keep truthful flags and a zero-length
+ * terminator closes the batch, its byte 2 reporting the queue depth
+ * (records, clamped to 255) -- read again immediately when several
+ * wait, let one or two deepen for the next poll. Older firmware
+ * sends zeros there, which reads as "no signal".
+ *
+ * Returns the number of frames delivered, or -1. *pending: queue
+ * depth from the terminator, 0 when the batch drained the queue or
+ * the device gave no signal.
  */
 int dp_bounded_read(int target, uint8_t *buf, uint32_t budget,
-                     void (*deliver)(const uint8_t *frame, int len))
+                     void (*deliver)(const uint8_t *frame, int len),
+                     int *pending)
 {
-    uint8_t cdb[6] = { 0x08, 0, 0, 0, 0, DP_MODE_BOUNDED };
+    /* Seamless emission assumed wanted here: a host using bounded
+     * mode has a hardware-handshaked engine (that is why it can take
+     * the batch in one transfer). Drop the bit if yours is not. */
+    uint8_t cdb[6] = { 0x08, 0, 0, 0, 0,
+                       DP_MODE_BOUNDED | DP_MODE_SEAMLESS };
     uint32_t off = 0, len;
     int count = 0;
+
+    *pending = 0;
 
     if (budget > 0xFFFF)
         budget = 0xFFFF;
@@ -416,8 +439,12 @@ int dp_bounded_read(int target, uint8_t *buf, uint32_t budget,
      * device supplied. */
     while (off + DP_HDR_LEN <= budget) {
         len = ((uint32_t)buf[off] << 8) | buf[off + 1];
-        if (len == 0)
-            break;                      /* empty queue / terminator */
+        if (len == 0) {                 /* closing terminator */
+            *pending = buf[off + 2];    /* queue depth, 0 = none  */
+            if ((buf[off + 5] & DP_FLAG_MORE) && *pending == 0)
+                *pending = 1;           /* flag without depth byte */
+            break;
+        }
         if (len > DP_MAX_FRAME || off + DP_HDR_LEN + len > budget)
             return count > 0 ? count : -1;
 
