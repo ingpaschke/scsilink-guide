@@ -40,11 +40,12 @@
  * CDB[5] of READ(6) selects the mode. Bit 0x80 is always set; bit
  * 0x40 turns on blind (multi-record) transfers; bit 0x20 is the
  * BlueSCSI-SL003 bounded extension and means nothing to real ROMs.
- * Bit 0x10 (also BlueSCSI-SL003) requests seamless emission --
- * seamless records, no pacing gaps. Send it from hardware-handshaked
- * hosts only: software-timed blind loops depend on the classic gaps,
- * and Quadra-era SCSI Manager 4.3 machines corrupt on the pauses
- * unless they are declared (see the guide's 4.3 section).
+ * Bit 0x10 (also BlueSCSI-SL003) requests seamless emission: the
+ * whole answer in one burst, no pacing gaps and no stall between
+ * records either. Send it from hardware-handshaked hosts only:
+ * software-timed blind loops depend on the classic gaps, and
+ * Quadra-era SCSI Manager 4.3 machines corrupt on the pauses unless
+ * they are declared (see the guide's 4.3 section).
  */
 #define DP_MODE_POLLED  0x80
 #define DP_MODE_BLIND   0xC0
@@ -61,6 +62,7 @@
 #define DP_INQ_STD          36          /* identity probe         */
 #define DP_INQ_CAP          37          /* capability probe       */
 #define DP_INQ_BOUNDED      0x01        /* byte 36: bounded reads */
+#define DP_INQ_SEAMLESS     0x02        /* byte 36: seamless honored */
 #define DP_SETTLE_RETRIES   50          /* x 10 ms = 500 ms       */
 /* << constants */
 
@@ -129,10 +131,13 @@ int dp_probe(int target)
     return 1;
 }
 
-/* Bounded-batch capability: INQUIRY byte 36 bit 0x01. The real ROM
- * answers 37 bytes with the bit clear; stock BlueSCSI zero-pads to
- * the allocation length, so the byte reads clear there too. Mask
- * exactly this bit; the others are reserved. */
+/* Bounded-batch capability: INQUIRY byte 36 bits 0x01 and 0x02. The
+ * real ROM answers 37 bytes with both clear; stock BlueSCSI zero-pads
+ * to the allocation length, so the byte reads clear there too. Both
+ * bits are required because dp_bounded_read sends the seamless bit:
+ * each capability is advertised on its own, and inferring one from
+ * the other corrupts on a SCSI Manager 4.3 host if the device honors
+ * only the bound. Mask exactly these bits; the others are reserved. */
 int dp_probe_bounded(int target)
 {
     uint8_t cdb[6] = { 0x12, 0, 0, 0, DP_INQ_CAP, 0 };
@@ -140,7 +145,8 @@ int dp_probe_bounded(int target)
 
     if (dp_transact(target, cdb, inq, DP_INQ_CAP, 1) != 0)
         return 0;
-    return (inq[DP_INQ_STD] & DP_INQ_BOUNDED) ? 1 : 0;
+    return (inq[DP_INQ_STD] & (DP_INQ_BOUNDED | DP_INQ_SEAMLESS))
+        == (DP_INQ_BOUNDED | DP_INQ_SEAMLESS) ? 1 : 0;
 }
 /* << probe */
 
