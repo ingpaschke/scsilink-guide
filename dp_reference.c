@@ -9,7 +9,7 @@
  *
  * Written by Ingo Paschke. To the extent possible under law, the
  * author has waived all copyright and related or neighboring rights
- * to this file (CC0 1.0 Universal). Copy it into your firmware, with
+ * to this file (CC0 1.0 Universal). Copy it into your driver, with
  * or without attribution.
  * https://creativecommons.org/publicdomain/zero/1.0/
  */
