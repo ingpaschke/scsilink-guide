@@ -15,7 +15,3 @@ Everything here is released into the public domain under
 [CC0 1.0 Universal](LICENSE). Use the guide and the reference driver
 in any project, commercial or not, under any license, with or without
 attribution. Attribution is welcome but not required.
-
-The reference driver is host-side code: the initiator half, what a
-Mac, Amiga or Atari driver does to talk to the adapter. The adapter
-side is described in the guide but not implemented here.
