@@ -8,3 +8,10 @@ PiSCSI and the Snow emulator.
 - [scsilink-guide.pdf](scsilink-guide.pdf) -- the guide (version 0.96)
 - [dp_reference.c](dp_reference.c) -- the reference driver core from
   the appendix; platform-neutral C, compiles standalone
+
+## License
+
+Everything here is released into the public domain under
+[CC0 1.0 Universal](LICENSE). Use the guide and the reference driver
+in any project, commercial or not, under any license, with or without
+attribution. Attribution is welcome but not required.

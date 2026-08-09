@@ -6,6 +6,12 @@
  * all three receive modes, and error recovery. Matches the behavior
  * described in the guide; nothing here depends on a particular
  * implementation beyond the documented probes.
+ *
+ * Written by Ingo Paschke. To the extent possible under law, the
+ * author has waived all copyright and related or neighboring rights
+ * to this file (CC0 1.0 Universal). Copy it into your firmware, with
+ * or without attribution.
+ * https://creativecommons.org/publicdomain/zero/1.0/
  */
 
 #include <stdint.h>
